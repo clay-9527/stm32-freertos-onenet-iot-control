@@ -158,7 +158,6 @@ unsigned char *ESP8266_GetIPD(unsigned short timeOut)
 			ptrIPD = strstr((char *)esp8266_buf, "IPD,");				//搜索“IPD”头
 			if(ptrIPD == NULL)											//如果没找到，可能是IPD头的延迟，还是需要等待一会，但不会超过设定的时间
 			{
-				//UsartPrintf(USART_DEBUG, "\"IPD\" not found\r\n");
 			}
 			else
 			{
@@ -174,7 +173,7 @@ unsigned char *ESP8266_GetIPD(unsigned short timeOut)
 			}
 		}
 		
-		 Delay_Ms_Safe(5);													//延时等待
+		 Delay_Ms_Safe(10);													//延时等待
 	} while(timeOut--);
 	
 	return NULL;														//超时还未找到，返回空指针

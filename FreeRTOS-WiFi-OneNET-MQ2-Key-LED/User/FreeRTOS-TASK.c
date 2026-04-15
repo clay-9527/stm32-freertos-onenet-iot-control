@@ -24,7 +24,7 @@ TaskHandle_t KeyTask_Handler = NULL;
 /*-------------------- 任务优先级 --------------------*/
 #define DATA_COLLECT_TASK_PRIO   3
 #define OLED_DISPLAY_TASK_PRIO   2
-#define ONENET_UPLOAD_TASK_PRIO  2
+#define ONENET_UPLOAD_TASK_PRIO  3
 #define KEY_TASK_PRIO            3
 
 /*-------------------- 任务堆栈 --------------------*/
@@ -146,7 +146,10 @@ static void key_task(void *pvParameters)
 
             LED_Set(ledTemp);
 
-            UsartPrintf(USART_DEBUG, "LED=%d\r\n", ledTemp);
+            /* 同步到上传变量 */
+            led_info.Led_Status = ledTemp;
+
+            UsartPrintf(USART_DEBUG, "KEY CTRL LED=%d\r\n", ledTemp);
         }
 
         vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(50));
@@ -191,6 +194,7 @@ static void oled_display_task(void *pvParameters)
     }
 }
 
+
 /**
   * @brief  OneNET上传任务
   * @param  pvParameters
@@ -202,13 +206,14 @@ static void onenet_upload_task(void *pvParameters)
     uint8_t mq2Upload = 0;
     uint8_t ledUpload = 0;
     unsigned char *dataPtr = NULL;
+    uint8_t uploadCnt = 0;
 
     xLastWakeTime = xTaskGetTickCount();
 
     while(1)
     {
-        /* 先处理平台下发数据 */
-        dataPtr = ESP8266_GetIPD(0);
+        /* 1. 高频检查平台下发 */
+        dataPtr = ESP8266_GetIPD(2);
         if(dataPtr != NULL)
         {
             UsartPrintf(USART_DEBUG, "IPD ARRIVED\r\n");
@@ -216,22 +221,29 @@ static void onenet_upload_task(void *pvParameters)
             ESP8266_Clear();
         }
 
-        if(xSemaphoreTake(g_sensorMutex, pdMS_TO_TICKS(20)) == pdTRUE)
+        /* 2. 每100ms轮询一次，1秒上传一次 */
+        uploadCnt++;
+        if(uploadCnt >= 10)
         {
-            mq2Upload = g_sensorData.mq2Percent;
-            ledUpload = g_sensorData.ledStatus;
-            xSemaphoreGive(g_sensorMutex);
+            uploadCnt = 0;
+
+            if(xSemaphoreTake(g_sensorMutex, pdMS_TO_TICKS(20)) == pdTRUE)
+            {
+                mq2Upload = g_sensorData.mq2Percent;
+                ledUpload = g_sensorData.ledStatus;
+                xSemaphoreGive(g_sensorMutex);
+            }
+
+            MQ2 = mq2Upload;
+            led_info.Led_Status = ledUpload;
+
+            UsartPrintf(USART_DEBUG,
+                        "UPLOAD MQ2=%d LED=%d\r\n",
+                        mq2Upload, ledUpload);
+
+            OneNet_SendData();
         }
 
-        MQ2 = mq2Upload;
-        led_info.Led_Status = ledUpload;
-
-        UsartPrintf(USART_DEBUG,
-                    "UPLOAD MQ2=%d LED=%d\r\n",
-                    mq2Upload, ledUpload);
-
-        OneNet_SendData();
-
-        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(2000));
+        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
     }
 }

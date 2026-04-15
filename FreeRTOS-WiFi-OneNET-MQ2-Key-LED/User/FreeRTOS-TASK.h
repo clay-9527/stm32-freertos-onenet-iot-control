@@ -12,19 +12,18 @@ typedef struct
     uint8_t ledStatus;
 }SensorData_t;
 
-
-
-
 /* 全局共享数据 */
 extern SensorData_t  g_sensorData;
 
 /* 互斥量 */
 extern SemaphoreHandle_t  g_sensorMutex;
 
-/* 任务句柄 */
+
+/* 任务句柄声明 */
 extern TaskHandle_t DataCollectTask_Handler;
 extern TaskHandle_t OLEDDisplayTask_Handler;
 extern TaskHandle_t OneNetUploadTask_Handler;
+extern TaskHandle_t KeyTask_Handler;
 
 
 /* 对外接口 */

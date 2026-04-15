@@ -7,7 +7,8 @@
 //协议文件
 #include "onenet.h"
 #include "mqttkit.h"
-
+#include "FreeRTOS-TASK.h"
+#include "semphr.h"
 //算法
 #include "base64.h"
 #include "hmac_sha1.h"
@@ -22,11 +23,11 @@
 #include <stdio.h>
 #include "cJSON.h"
 
-#define PROID			""								//填写自己的产品ID
+#define PROID			"48hhs5yDIe"								//填写自己的产品ID
 
-#define ACCESS_KEY		""						//填写自己的设备秘钥
+#define ACCESS_KEY		"SEpydzZVb0hLc0dORjJBMjZmVUdmZWtjVkRaMHVwSlY="						//填写自己的设备秘钥
 
-#define DEVICE_NAME		""						//填写自己的设备名称
+#define DEVICE_NAME		"one1"						//填写自己的设备名称
 
 
 char devid[16];
@@ -504,10 +505,35 @@ void OneNet_RevPro(unsigned char *cmd)
 				params_json = cJSON_GetObjectItem(raw_json,"params");
 				led_json = cJSON_GetObjectItem(params_json,"LED");
 				if(led_json != NULL)
-				{
-					if(led_json->type == cJSON_True) LED_Set(LED_ON);
-					else LED_Set(LED_OFF);
-				}
+{
+    uint8_t ledNewState = 0;
+
+    if(led_json->type == cJSON_True)
+    {
+        ledNewState = 1;
+        LED_Set(LED_ON);
+    }
+    else if(led_json->type == cJSON_False)
+    {
+        ledNewState = 0;
+        LED_Set(LED_OFF);
+    }
+    else if(led_json->type == cJSON_Number)
+    {
+        ledNewState = (led_json->valueint != 0) ? 1 : 0;
+        LED_Set(ledNewState ? LED_ON : LED_OFF);
+    }
+
+    if(xSemaphoreTake(g_sensorMutex, pdMS_TO_TICKS(20)) == pdTRUE)
+    {
+        g_sensorData.ledStatus = ledNewState;
+        xSemaphoreGive(g_sensorMutex);
+    }
+
+    led_info.Led_Status = ledNewState;
+
+    UsartPrintf(USART_DEBUG, "CLOUD CTRL LED=%d\r\n", ledNewState);
+}
 				
 				cJSON_Delete(raw_json);
 				
